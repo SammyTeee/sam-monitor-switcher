@@ -8,6 +8,40 @@ internal static class Program
     [STAThread] static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        if (args.Contains("--test-switch"))
+        {
+            var log = Path.Combine(AppContext.BaseDirectory, "test-switch.log");
+            void Log(string text) => File.AppendAllText(log, DateTime.Now + " " + text + Environment.NewLine);
+            try
+            {
+                var original = Displays.Read();
+                var candidates = Enumerable.Range(0, original.Count).Where(i => Displays.Target(original, i).Name.Contains("LG", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (candidates.Length != 1 || original.Count < 2) throw new InvalidOperationException("Expected one LG plus another active display.");
+                string id = Displays.Target(original, candidates[0]).Id;
+                string recovery = Path.Combine(AppContext.BaseDirectory, "saved-layout.json");
+                if (File.Exists(recovery)) throw new InvalidOperationException("Restore the pending saved layout before testing.");
+                File.WriteAllText(recovery, JsonSerializer.Serialize(new SavedState(original, id)));
+                try
+                {
+                    Log("Disconnecting LG");
+                    Displays.Apply(original.Without(candidates[0]));
+                    var off = Displays.Read();
+                    if (Enumerable.Range(0, off.Count).Any(i => Displays.Target(off, i).Id == id)) throw new InvalidOperationException("LG still active.");
+                    Log("PASS: LG disconnected; " + off.Count + " displays remain active.");
+                }
+                finally
+                {
+                    Log("Restoring original layout");
+                    Displays.Apply(original);
+                    var restored = Displays.Read();
+                    if (!Enumerable.Range(0, restored.Count).Any(i => Displays.Target(restored, i).Id == id)) throw new InvalidOperationException("LG was not restored.");
+                    File.Delete(recovery);
+                    Log("PASS: LG restored; " + restored.Count + " displays active.");
+                }
+            }
+            catch (Exception ex) { Log(ex.ToString()); Environment.ExitCode = 1; }
+            return;
+        }
         if (args.Contains("--diagnose"))
         {
             var layout = Displays.Read();
@@ -22,9 +56,7 @@ internal static class Program
 }
 internal sealed class Switcher : Form
 {
-    [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
-    [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr window, int id);
-    [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
+    GlobalShortcut? shortcut;
     readonly string stateFile = Path.Combine(AppContext.BaseDirectory, "saved-layout.json");
     readonly NotifyIcon tray;
     readonly Label status = new() { AutoSize = false, Dock = DockStyle.Fill, Padding = new Padding(16) };
@@ -43,23 +75,22 @@ internal sealed class Switcher : Form
         tray.DoubleClick += (_, _) => { Show(); Activate(); };
         status.Text = "Left Ctrl + Right Alt + Enter toggles your LG monitor.\n\nClosing this window keeps the hotkey running in the system tray.\nSwitch the monitor's input to Xbox separately.";
     }
-    protected override void OnHandleCreated(EventArgs e)
+    protected override void OnShown(EventArgs e)
     {
-        base.OnHandleCreated(e);
-        if (!RegisterHotKey(Handle, 1, 0x4000 | 1 | 2, 13))
-            MessageBox.Show(this, "Could not register Ctrl + Alt + Enter. Another app may already use it. Exit that app and restart this one.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        base.OnShown(e);
+        try { shortcut = new GlobalShortcut(() => BeginInvoke((Action)Toggle)); Report("Ready: Left Ctrl + Right Alt + Enter"); }
+        catch (Exception ex) { Report(ex.Message, true); }
     }
-    protected override void OnHandleDestroyed(EventArgs e) { UnregisterHotKey(Handle, 1); base.OnHandleDestroyed(e); }
-    protected override void WndProc(ref Message m)
-    {
-        if (m.Msg == 0x312 && m.WParam == (IntPtr)1 && GetAsyncKeyState(0xA2) < 0 && GetAsyncKeyState(0xA5) < 0)
-            BeginInvoke((Action)Toggle);
-        base.WndProc(ref m);
-    }
-    void Toggle()
+    async void Toggle()
     {
         if (busy) return;
         busy = true;
+        status.Text = "Switching LG monitor...";
+        try { await Task.Run(ToggleCore); }
+        finally { busy = false; }
+    }
+    void ToggleCore()
+    {
         try
         {
             var current = Displays.Read();
@@ -98,10 +129,11 @@ internal sealed class Switcher : Form
             Report("LG disconnected from Windows. Press the same shortcut to reconnect.");
         }
         catch (Exception ex) { Report("Could not switch: " + ex.Message, true); }
-        finally { busy = false; }
     }
     void Report(string message, bool error = false)
     {
+        if (InvokeRequired) { BeginInvoke((Action)(() => Report(message, error))); return; }
+        try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "switcher.log"), DateTime.Now + " " + message + Environment.NewLine); } catch { }
         status.Text = message + "\n\nShortcut: Left Ctrl + Right Alt + Enter";
         tray.ShowBalloonTip(4000, Text, message, error ? ToolTipIcon.Error : ToolTipIcon.Info);
     }
@@ -110,8 +142,12 @@ internal sealed class Switcher : Form
         if (!exiting && e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); }
         base.OnFormClosing(e);
     }
-    protected override void Dispose(bool disposing) { if (disposing) tray.Dispose(); base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { shortcut?.Dispose(); tray.Dispose(); } base.Dispose(disposing); }
 }
+
+
+
+
 
 
 

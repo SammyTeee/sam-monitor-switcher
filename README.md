@@ -8,7 +8,7 @@ This disconnects the PC display output; switch the LG to your Xbox input using t
 
 The original Windows display configuration is saved in `app/saved-layout.json` before disconnecting, so the shortcut can restore it after restarting the app. Keep this file while the LG is disconnected. Reconnect the PC cable if it has been unplugged. Display driver or hardware changes can make a saved configuration unavailable; failures are shown through tray notifications and the app window.
 
-The shortcut uses Windows RegisterHotKey with repeat suppression and checks Left Ctrl and Right Alt specifically. Ctrl + Alt + Enter is reserved while the app is running. If another app already owns that combination, a startup error explains the conflict.
+The shortcut uses a global low-level keyboard hook to detect Left Ctrl + Right Alt + Enter at key-down, with repeat suppression. Only the matching Enter press is consumed. Display changes run on a worker thread so the keyboard hook and window stay responsive. Status and errors are logged to app/switcher.log.
 
 ## Build
 
@@ -33,3 +33,4 @@ app/sam-monitor-switcher.exe --diagnose
 This writes `app/display-check.json` without changing any displays.
 
 The app uses Windows QueryDisplayConfig and SetDisplayConfig to save and restore the complete active display configuration. Both validation and apply results are checked. If disconnecting fails, it attempts to roll back the original layout. It never deliberately disconnects the final active display.
+
