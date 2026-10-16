@@ -1,0 +1,8 @@
+bin/
+obj/
+app/
+build-temp/
+display-check.json
+app-preview.png
+saved-layout.json*
+git-metadata/
