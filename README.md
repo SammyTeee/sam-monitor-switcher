@@ -39,3 +39,7 @@ The app uses Windows QueryDisplayConfig and SetDisplayConfig to save and restore
 ## Launch from your desktop
 
 Double-click Launch.cmd in Windows File Explorer. A process launched on a separate automation sandbox desktop cannot receive your desktop's global shortcut or change its displays, even if hotkey registration succeeds. The app records its desktop name and token status in app/access.log to diagnose this case. Administrator access is not required for normal desktop use.
+
+While the LG is disconnected, remaining monitors keep their left-to-right order and are arranged side by side, closing the gap left by the LG. A remaining monitor becomes primary at (0,0). Reconnecting restores the exact saved layout. Disconnected monitors' modes are removed from the submitted mode table, and remaining mode indexes are remapped.
+
+`--test-layout` checks mode references, primary position, contiguous placement, and preservation of the restore snapshot against the current monitor configuration without changing displays. `--validate-disconnect` asks Windows to validate both configurations without applying them. These native API checks must be launched from the normal desktop. `--test-switch` disconnects and immediately restores the LG, recording results in app/test-switch.log.

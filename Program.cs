@@ -9,6 +9,53 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
         try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "access.log"), DateTime.Now + " " + AccessDiagnostics.Read() + Environment.NewLine); } catch { }
+        if (args.Contains("--test-layout"))
+        {
+            var original = Displays.Read();
+            byte[] unchanged = original.Modes.ToArray();
+            for (int removed = 0; removed < original.Count; removed++)
+            {
+                var off = original.Without(removed);
+                if (off.Count != original.Count - 1) throw new Exception("Incorrect path count.");
+                var used = new HashSet<uint>();
+                for (int p = 0; p < off.Count; p++)
+                    foreach (int field in new[] {12, 32})
+                    {
+                        uint mode = BitConverter.ToUInt32(off.Paths, p * 72 + field);
+                        if (mode >= off.Modes.Length / 64) throw new Exception("Invalid mode reference.");
+                        used.Add(mode);
+                        int expectedType = field == 12 ? 1 : 2;
+                        if (BitConverter.ToUInt32(off.Modes, (int)mode * 64) != expectedType) throw new Exception("Incorrect mode type.");
+                    }
+                if (used.Count != off.Modes.Length / 64) throw new Exception("Unused modes remain.");
+                var sources = Enumerable.Range(0, off.Modes.Length / 64).Where(i => BitConverter.ToUInt32(off.Modes, i * 64) == 1).OrderBy(i => BitConverter.ToInt32(off.Modes, i * 64 + 28)).ToArray();
+                if (sources.Count(i => BitConverter.ToInt32(off.Modes, i * 64 + 28) == 0 && BitConverter.ToInt32(off.Modes, i * 64 + 32) == 0) != 1) throw new Exception("Missing or duplicate primary.");
+                for (int i = 1; i < sources.Length; i++)
+                {
+                    int previous = sources[i - 1] * 64;
+                    int next = sources[i] * 64;
+                    if (BitConverter.ToInt32(off.Modes, previous + 28) + BitConverter.ToUInt32(off.Modes, previous + 16) != BitConverter.ToInt32(off.Modes, next + 28)) throw new Exception("Gap or overlap.");
+                }
+            }
+            if (!unchanged.SequenceEqual(original.Modes)) throw new Exception("Restore snapshot was modified.");
+            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "layout-test.log"), "PASS: all three monitor removals have valid mode references, no unused modes, one primary at origin, no gaps or overlaps, and an unchanged restore snapshot.");
+            return;
+        }
+        if (args.Contains("--validate-disconnect"))
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, "validation.log");
+            try
+            {
+                var current = Displays.Read();
+                int lg = Enumerable.Range(0, current.Count).Single(i => Displays.Target(current, i).Name.Contains("LG", StringComparison.OrdinalIgnoreCase));
+                var off = current.Without(lg);
+                Displays.Validate(off);
+                Displays.Validate(current);
+                File.WriteAllText(path, "PASS: Windows validated LG-off layout and original restore layout. No displays changed.");
+            }
+            catch (Exception ex) { File.WriteAllText(path, ex.ToString()); Environment.ExitCode = 1; }
+            return;
+        }
         if (args.Contains("--test-switch"))
         {
             var log = Path.Combine(AppContext.BaseDirectory, "test-switch.log");
@@ -131,9 +178,13 @@ internal sealed class Switcher : Form
                 if (Enumerable.Range(0, after.Count).Any(i => Displays.Target(after, i).Id == targets[target].Id))
                     throw new InvalidOperationException("Windows did not disconnect the LG.");
             }
-            catch
+            catch (Exception switchError)
             {
-                Displays.Apply(current); // Roll back a partial or rejected change.
+                try { Displays.Apply(current); }
+                catch (Exception restoreError)
+                {
+                    throw new InvalidOperationException($"Switch failed: {switchError.Message} Restore also failed: {restoreError.Message} Saved layout kept for recovery.", switchError);
+                }
                 throw;
             }
             Report("LG disconnected from Windows. Press the same shortcut to reconnect.");
@@ -154,6 +205,9 @@ internal sealed class Switcher : Form
     }
     protected override void Dispose(bool disposing) { if (disposing) { shortcut?.Dispose(); tray.Dispose(); } base.Dispose(disposing); }
 }
+
+
+
 
 
 
