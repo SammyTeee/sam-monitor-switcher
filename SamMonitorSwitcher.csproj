@@ -9,6 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
-  <ItemGroup><Compile Include="Program.cs"/><Compile Include="Displays.cs"/><Compile Include="GlobalShortcut.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="Program.cs"/><Compile Include="Displays.cs"/><Compile Include="GlobalShortcut.cs"/><Compile Include="AccessDiagnostics.cs"/></ItemGroup>
 </Project>
+
 

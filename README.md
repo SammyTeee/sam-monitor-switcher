@@ -8,7 +8,7 @@ This disconnects the PC display output; switch the LG to your Xbox input using t
 
 The original Windows display configuration is saved in `app/saved-layout.json` before disconnecting, so the shortcut can restore it after restarting the app. Keep this file while the LG is disconnected. Reconnect the PC cable if it has been unplugged. Display driver or hardware changes can make a saved configuration unavailable; failures are shown through tray notifications and the app window.
 
-The shortcut uses a global low-level keyboard hook to detect Left Ctrl + Right Alt + Enter at key-down, with repeat suppression. Only the matching Enter press is consumed. Display changes run on a worker thread so the keyboard hook and window stay responsive. Status and errors are logged to app/switcher.log.
+The shortcut uses Windows RegisterHotKey with repeat suppression. Either Ctrl and either Alt work, including Left Ctrl + Right Alt + Enter. There are no delayed modifier-state checks. Display changes run on a worker thread. Status and errors are logged to app/switcher.log.
 
 ## Build
 
@@ -34,3 +34,8 @@ This writes `app/display-check.json` without changing any displays.
 
 The app uses Windows QueryDisplayConfig and SetDisplayConfig to save and restore the complete active display configuration. Both validation and apply results are checked. If disconnecting fails, it attempts to roll back the original layout. It never deliberately disconnects the final active display.
 
+
+
+## Launch from your desktop
+
+Double-click Launch.cmd in Windows File Explorer. A process launched on a separate automation sandbox desktop cannot receive your desktop's global shortcut or change its displays, even if hotkey registration succeeds. The app records its desktop name and token status in app/access.log to diagnose this case. Administrator access is not required for normal desktop use.

@@ -46,7 +46,8 @@ internal static class Displays
             throw new InvalidOperationException("Invalid saved display layout.");
         // Validate before changing anything; allow Windows to resolve mode conflicts.
         Check(SetDisplayConfig((uint)layout.Count, layout.Paths, (uint)layout.Modes.Length / 64, layout.Modes, 0x40 | 0x20 | 0x400));
-        Check(SetDisplayConfig((uint)layout.Count, layout.Paths, (uint)layout.Modes.Length / 64, layout.Modes, 0x80 | 0x20 | 0x400 | 0x200));
+        Check(SetDisplayConfig((uint)layout.Count, layout.Paths, (uint)layout.Modes.Length / 64, layout.Modes, 0x80 | 0x20 | 0x400));
     }
     static void Check(int result) { if (result != 0) throw new Win32Exception(result); }
 }
+

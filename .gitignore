@@ -7,3 +7,5 @@ app-preview.png
 saved-layout.json*
 git-metadata/
 switcher.log
+*.lnk
+access.log

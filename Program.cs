@@ -8,6 +8,7 @@ internal static class Program
     [STAThread] static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "access.log"), DateTime.Now + " " + AccessDiagnostics.Read() + Environment.NewLine); } catch { }
         if (args.Contains("--test-switch"))
         {
             var log = Path.Combine(AppContext.BaseDirectory, "test-switch.log");
@@ -78,8 +79,17 @@ internal sealed class Switcher : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        try { shortcut = new GlobalShortcut(() => BeginInvoke((Action)Toggle)); Report("Ready: Left Ctrl + Right Alt + Enter"); }
+        try { shortcut = new GlobalShortcut(Handle); Report("Ready: Left Ctrl + Right Alt + Enter"); }
         catch (Exception ex) { Report(ex.Message, true); }
+    }
+    protected override void WndProc(ref Message message)
+    {
+        if (message.Msg == 0x312 && message.WParam == (IntPtr)GlobalShortcut.Id)
+        {
+            Report("Hotkey received. Switching LG...");
+            Toggle();
+        }
+        base.WndProc(ref message);
     }
     async void Toggle()
     {
@@ -144,6 +154,9 @@ internal sealed class Switcher : Form
     }
     protected override void Dispose(bool disposing) { if (disposing) { shortcut?.Dispose(); tray.Dispose(); } base.Dispose(disposing); }
 }
+
+
+
 
 
 
