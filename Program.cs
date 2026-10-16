@@ -15,25 +15,6 @@ internal static class Program
             File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "display-check.json"), JsonSerializer.Serialize(targets, new JsonSerializerOptions { WriteIndented = true }));
             return;
         }
-        if (args.Contains("--test-toggle"))
-        {
-            var original = Displays.Read();
-            var lg = Enumerable.Range(0, original.Count).Where(i => Displays.Target(original, i).Name.Contains("LG", StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (lg.Length != 1 || original.Count < 2) throw new InvalidOperationException("Test requires one LG and another active display.");
-            string id = Displays.Target(original, lg[0]).Id;
-            bool detached = false, restored = false;
-            try
-            {
-                Displays.Apply(original.Without(lg[0]));
-                var off = Displays.Read();
-                detached = !Enumerable.Range(0, off.Count).Any(i => Displays.Target(off, i).Id == id);
-            }
-            finally { Displays.Apply(original); }
-            var on = Displays.Read();
-            restored = Enumerable.Range(0, on.Count).Any(i => Displays.Target(on, i).Id == id);
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "toggle-test.json"), JsonSerializer.Serialize(new { detached, restored, originalDisplays = original.Count, restoredDisplays = on.Count }));
-            return;
-        }
         using var mutex = new Mutex(true, "SamMonitorSwitcher.SingleInstance", out bool first);
         if (!first) return;
         Application.Run(new Switcher());
@@ -131,5 +112,6 @@ internal sealed class Switcher : Form
     }
     protected override void Dispose(bool disposing) { if (disposing) tray.Dispose(); base.Dispose(disposing); }
 }
+
 
 
